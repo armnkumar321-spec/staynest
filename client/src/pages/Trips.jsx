@@ -8,6 +8,7 @@ export default function Trips() {
   const location = useLocation();
   const [bookings, setBookings] = useState(null);
   const [error, setError] = useState('');
+  const [cancellingBooking, setCancellingBooking] = useState(null);
 
   const load = () =>
     api
@@ -19,13 +20,15 @@ export default function Trips() {
     load();
   }, []);
 
-  // TODO: ask for confirmation before cancelling.
-  const cancel = async (id) => {
+  const handleConfirmCancel = async () => {
+    if (!cancellingBooking) return;
     try {
-      await api.patch(`/bookings/${id}/cancel`);
+      await api.patch(`/bookings/${cancellingBooking._id}/cancel`);
+      setCancellingBooking(null);
       load();
     } catch (err) {
       setError(getErrorMessage(err));
+      setCancellingBooking(null);
     }
   };
 
@@ -54,12 +57,34 @@ export default function Trips() {
               <span className={`status status-${b.status}`}>{b.status}</span>
               <strong>{formatINR(b.totalPrice)}</strong>
               {['pending', 'confirmed'].includes(b.status) && (
-                <button className="btn btn-danger" onClick={() => cancel(b._id)}>Cancel</button>
+                <button className="btn btn-danger" onClick={() => setCancellingBooking(b)}>Cancel</button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {cancellingBooking && (
+        <div className="modal-overlay" onClick={() => setCancellingBooking(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Confirm Cancellation</h2>
+            <p>Are you sure you want to cancel this trip?</p>
+            <div className="modal-details">
+              <p><strong>Stay:</strong> {cancellingBooking.listing?.title}</p>
+              <p><strong>Check-in:</strong> {formatDate(cancellingBooking.checkIn)}</p>
+              <p><strong>Check-out:</strong> {formatDate(cancellingBooking.checkOut)}</p>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setCancellingBooking(null)}>
+                Keep Booking
+              </button>
+              <button className="btn btn-danger" onClick={handleConfirmCancel}>
+                Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

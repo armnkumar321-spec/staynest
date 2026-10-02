@@ -116,4 +116,23 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; colo
 .empty { text-align: center; padding: 60px 0; }
 .footer { text-align: center; color: var(--muted); padding: 24px; border-top: 1px solid var(--border); }
 
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; max-width: 480px; width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+.modal h2 { margin-top: 0; margin-bottom: 12px; }
+.modal-details {
+  background: var(--bg); padding: 12px 16px; border-radius: var(--radius);
+  margin: 16px 0; border: 1px solid var(--border);
+}
+.modal-details p { margin: 6px 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+
 /* TODO: detail-layout and search-bar break on mobile (<768px) - see "Mobile responsive" issue */
