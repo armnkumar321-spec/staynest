@@ -14,6 +14,23 @@ It is built as a **beginner-friendly open-source project**: real features, clear
 - 🧑‍💼 Host dashboard: create / edit / delete listings, accept or decline bookings
 - ⭐ Reviews (only after a completed stay) with automatic average rating
 
+## 📸 Screenshots
+
+### Application Flow Demo
+![StayNest Demo](./docs/screenshots/demo.gif)
+
+### 1. Explore Stays
+![Explore](./docs/screenshots/explore.png)
+
+### 2. Listing Detail
+![Listing Detail](./docs/screenshots/listing-detail.png)
+
+### 3. My Trips (Guest)
+![My Trips](./docs/screenshots/my-trips.png)
+
+### 4. Host Dashboard (Host)
+![Host Dashboard](./docs/screenshots/host-dashboard.png)
+
 ## 🧱 Tech stack
 
 | Layer    | Tech                                 |
@@ -33,6 +50,7 @@ staynest/
 │       ├── context/           # AuthContext
 │       ├── pages/             # Home, ListingDetail, Trips, host/*
 │       └── utils/
+├── docs/                      # Screenshots and demo media
 └── server/                    # Express API
     └── src/
         ├── config/
