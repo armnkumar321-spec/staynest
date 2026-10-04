@@ -4,6 +4,7 @@ import api, { getErrorMessage } from '../api/client.js';
 import Loader from '../components/Loader.jsx';
 import BookingBox from '../components/BookingBox.jsx';
 import Reviews from '../components/Reviews.jsx';
+import ListingMap from '../components/ListingMap.jsx';
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -51,7 +52,7 @@ export default function ListingDetail() {
 
           <h3>Location</h3>
           <p className="muted">{listing.address}, {listing.city}</p>
-          {/* TODO: show a map (Leaflet + OpenStreetMap) - see issue tracker */}
+          <ListingMap location={listing.location} title={listing.title} />
 
           <Reviews listingId={listing._id} onReviewAdded={load} />
         </div>

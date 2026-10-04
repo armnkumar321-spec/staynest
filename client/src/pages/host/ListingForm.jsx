@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api, { getErrorMessage } from '../../api/client.js';
 import { STAY_TYPES } from '../../utils/format.js';
+import LocationPickerMap from '../../components/LocationPickerMap.jsx';
 
 const empty = {
   title: '',
@@ -15,6 +16,7 @@ const empty = {
   bedrooms: 1,
   amenities: '',
   imageUrl: '',
+  location: null,
 };
 
 export default function ListingForm() {
@@ -30,6 +32,7 @@ export default function ListingForm() {
       setForm({
         ...empty,
         ...data,
+        location: data.location || null,
         amenities: data.amenities.join(', '),
         imageUrl: data.images[0] || '',
       })
@@ -42,7 +45,7 @@ export default function ListingForm() {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    const { title, description, type, city, state, address, imageUrl, amenities } = form;
+    const { title, description, type, city, state, address, imageUrl, amenities, location } = form;
     const payload = {
       title,
       description,
@@ -56,6 +59,15 @@ export default function ListingForm() {
       amenities: amenities.split(',').map((a) => a.trim()).filter(Boolean),
     };
     if (imageUrl) payload.images = [imageUrl];
+    if (
+      location &&
+      typeof location.lat === 'number' &&
+      typeof location.lng === 'number' &&
+      !isNaN(location.lat) &&
+      !isNaN(location.lng)
+    ) {
+      payload.location = { lat: location.lat, lng: location.lng };
+    }
     try {
       if (isEdit) await api.put(`/listings/${id}`, payload);
       else await api.post('/listings', payload);
@@ -90,6 +102,11 @@ export default function ListingForm() {
         </label>
       </div>
       <input placeholder="Amenities (comma separated: WiFi, AC, Parking)" value={form.amenities} onChange={set('amenities')} />
+      <LocationPickerMap
+        location={form.location}
+        city={form.city}
+        onChange={(loc) => setForm((prev) => ({ ...prev, location: loc }))}
+      />
       <input placeholder="Image URL (optional)" value={form.imageUrl} onChange={set('imageUrl')} />
       {error && <p className="error">{error}</p>}
       <button className="btn">{isEdit ? 'Save changes' : 'Publish listing'}</button>

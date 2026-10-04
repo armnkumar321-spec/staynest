@@ -117,3 +117,29 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; colo
 .footer { text-align: center; color: var(--muted); padding: 24px; border-top: 1px solid var(--border); }
 
 /* TODO: detail-layout and search-bar break on mobile (<768px) - see "Mobile responsive" issue */
+
+/* Map styles for Leaflet */
+.map-wrapper {
+  margin: 12px 0 16px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.listing-map {
+  height: 350px;
+  width: 100%;
+  border-radius: var(--radius);
+  z-index: 1;
+}
+.picker-map {
+  height: 280px;
+}
+.map-fallback {
+  padding: 24px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  margin: 12px 0;
+}
+

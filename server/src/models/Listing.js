@@ -20,6 +20,10 @@ const listingSchema = new mongoose.Schema(
       type: [String],
       default: ['https://placehold.co/800x500?text=StayNest'],
     },
+    location: {
+      lat: { type: Number },
+      lng: { type: Number },
+    },
     host: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     avgRating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
