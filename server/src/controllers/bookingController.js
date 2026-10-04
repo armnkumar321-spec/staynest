@@ -1,6 +1,11 @@
 import Booking from '../models/Booking.js';
 import Listing from '../models/Listing.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import {
+  sendNewBookingHostEmail,
+  sendBookingConfirmedGuestEmail,
+  sendBookingDeclinedGuestEmail,
+} from '../utils/mailer.js';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -8,7 +13,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 export const createBooking = asyncHandler(async (req, res) => {
   const { listingId, checkIn, checkOut, guests } = req.body;
 
-  const listing = await Listing.findById(listingId);
+  const listing = await Listing.findById(listingId).populate('host', 'name email');
   if (!listing || !listing.isActive) {
     res.status(404);
     throw new Error('Listing not available');
@@ -29,13 +34,23 @@ export const createBooking = asyncHandler(async (req, res) => {
     throw new Error(`This stay allows a maximum of ${listing.maxGuests} guests`);
   }
 
-  if (listing.host.equals(req.user._id)) {
+  const hostId = listing.host?._id || listing.host;
+  if (hostId.equals(req.user._id)) {
     res.status(400);
     throw new Error('You cannot book your own listing');
   }
 
-  // BUG: there is no check for overlapping bookings, so the same
-  // dates can be booked twice. See "Prevent double booking" issue.
+  const existingBooking = await Booking.findOne({
+    listing: listing._id,
+    status: { $in: ['pending', 'confirmed'] },
+    checkIn: { $lt: end },
+    checkOut: { $gt: start },
+  });
+
+  if (existingBooking) {
+    res.status(409);
+    throw new Error('This listing is already booked for the requested dates');
+  }
 
   const booking = await Booking.create({
     listing: listing._id,
@@ -46,6 +61,23 @@ export const createBooking = asyncHandler(async (req, res) => {
     nights,
     totalPrice: nights * listing.pricePerNight,
   });
+
+  const hostEmail = listing.host?.email;
+  if (hostEmail) {
+    sendNewBookingHostEmail({
+      hostEmail,
+      guestName: req.user.name,
+      guestEmail: req.user.email,
+      listingTitle: listing.title,
+      checkIn: booking.checkIn,
+      checkOut: booking.checkOut,
+      guests: booking.guests,
+      totalPrice: booking.totalPrice,
+      status: booking.status,
+    }).catch((emailErr) => {
+      console.error('[Mailer Error] New booking host notification failed:', emailErr.message);
+    });
+  }
 
   res.status(201).json(booking);
 });
@@ -75,7 +107,8 @@ export const cancelBooking = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error('Booking not found');
   }
-  if (!booking.guest.equals(req.user._id)) {
+  const guestId = booking.guest?._id || booking.guest;
+  if (!guestId.equals(req.user._id)) {
     res.status(403);
     throw new Error('Not your booking');
   }
@@ -83,6 +116,7 @@ export const cancelBooking = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(`Booking is already ${booking.status}`);
   }
+
   booking.status = 'cancelled';
   await booking.save();
   res.json(booking);
@@ -91,12 +125,15 @@ export const cancelBooking = asyncHandler(async (req, res) => {
 // PATCH /api/bookings/:id/status (host of the listing)
 export const updateBookingStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const booking = await Booking.findById(req.params.id).populate('listing', 'host');
+  const booking = await Booking.findById(req.params.id)
+    .populate('listing', 'title host')
+    .populate('guest', 'name email');
   if (!booking) {
     res.status(404);
     throw new Error('Booking not found');
   }
-  if (!booking.listing.host.equals(req.user._id)) {
+  const hostId = booking.listing?.host?._id || booking.listing?.host;
+  if (!hostId || !hostId.equals(req.user._id)) {
     res.status(403);
     throw new Error('Not a booking on your listing');
   }
@@ -104,7 +141,38 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Invalid status');
   }
+
+  const previousStatus = booking.status;
   booking.status = status;
   await booking.save();
+
+  if (previousStatus !== status) {
+    if (status === 'confirmed' && booking.guest?.email) {
+      sendBookingConfirmedGuestEmail({
+        guestEmail: booking.guest.email,
+        listingTitle: booking.listing.title,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        guests: booking.guests,
+        totalPrice: booking.totalPrice,
+        status: booking.status,
+      }).catch((emailErr) => {
+        console.error('[Mailer Error] Booking confirmation email failed:', emailErr.message);
+      });
+    } else if (status === 'cancelled' && booking.guest?.email) {
+      sendBookingDeclinedGuestEmail({
+        guestEmail: booking.guest.email,
+        listingTitle: booking.listing.title,
+        checkIn: booking.checkIn,
+        checkOut: booking.checkOut,
+        guests: booking.guests,
+        totalPrice: booking.totalPrice,
+        status: booking.status,
+      }).catch((emailErr) => {
+        console.error('[Mailer Error] Booking decline email failed:', emailErr.message);
+      });
+    }
+  }
+
   res.json(booking);
 });
