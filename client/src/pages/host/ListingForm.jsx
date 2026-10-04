@@ -3,6 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api, { getErrorMessage } from '../../api/client.js';
 import { STAY_TYPES } from '../../utils/format.js';
 
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+const ALLOWED_EXT_REGEX = /\.(jpg|jpeg|png|webp)$/i;
+
 const empty = {
   title: '',
   description: '',
@@ -23,22 +27,105 @@ export default function ListingForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState(empty);
   const [error, setError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
 
   useEffect(() => {
     if (!isEdit) return;
-    api.get(`/listings/${id}`).then(({ data }) =>
+    api.get(`/listings/${id}`).then(({ data }) => {
+      const mainImage = data.images && data.images[0] ? data.images[0] : '';
       setForm({
         ...empty,
         ...data,
-        amenities: data.amenities.join(', '),
-        imageUrl: data.images[0] || '',
-      })
-    );
+        amenities: Array.isArray(data.amenities) ? data.amenities.join(', ') : '',
+        imageUrl: mainImage,
+      });
+      setPreviewUrl(mainImage);
+    });
   }, [id, isEdit]);
 
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
 
-  // TODO: replace the image URL field with real image upload (Cloudinary / multer).
+  const validateFile = (file) => {
+    if (!file) return 'No file selected.';
+    const isValidType = ALLOWED_TYPES.includes(file.type) || ALLOWED_EXT_REGEX.test(file.name);
+    if (!isValidType) {
+      return 'Invalid file type. Only JPG, PNG, and WebP images are allowed.';
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return 'File size exceeds maximum limit of 2 MB.';
+    }
+    return null;
+  };
+
+  const handleFileUpload = async (file) => {
+    setError('');
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    setUploading(true);
+    try {
+      const { data } = await api.post('/uploads', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      if (data && data.url) {
+        setForm((prev) => ({ ...prev, imageUrl: data.url }));
+        setPreviewUrl(data.url);
+      }
+    } catch (err) {
+      setError(getErrorMessage(err));
+      // Revert preview if upload failed and no prior URL
+      if (!form.imageUrl) {
+        setPreviewUrl('');
+      } else {
+        setPreviewUrl(form.imageUrl);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setForm((prev) => ({ ...prev, imageUrl: '' }));
+    setPreviewUrl('');
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
@@ -56,6 +143,7 @@ export default function ListingForm() {
       amenities: amenities.split(',').map((a) => a.trim()).filter(Boolean),
     };
     if (imageUrl) payload.images = [imageUrl];
+
     try {
       if (isEdit) await api.put(`/listings/${id}`, payload);
       else await api.post('/listings', payload);
@@ -64,6 +152,8 @@ export default function ListingForm() {
       setError(getErrorMessage(err));
     }
   };
+
+  const currentImage = previewUrl || form.imageUrl;
 
   return (
     <form className="card form wide" onSubmit={submit}>
@@ -90,9 +180,67 @@ export default function ListingForm() {
         </label>
       </div>
       <input placeholder="Amenities (comma separated: WiFi, AC, Parking)" value={form.amenities} onChange={set('amenities')} />
-      <input placeholder="Image URL (optional)" value={form.imageUrl} onChange={set('imageUrl')} />
+
+      <div className="form-group">
+        <label>Listing Image</label>
+        {currentImage ? (
+          <div className="upload-preview">
+            <img src={currentImage} alt="Listing preview" />
+            <div className="upload-preview-overlay">
+              <span className="small muted">
+                {uploading ? 'Uploading to Cloudinary...' : 'Image ready'}
+              </span>
+              <div className="upload-preview-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost small"
+                  onClick={handleRemoveImage}
+                  disabled={uploading}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`dropzone ${dragActive ? 'active' : ''}`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileChange}
+              disabled={uploading}
+            />
+            <div className="dropzone-icon">📷</div>
+            <div className="dropzone-text">
+              {uploading ? 'Uploading image...' : 'Drag & drop image here, or click to browse'}
+            </div>
+            <div className="dropzone-subtext">
+              Supports JPG, PNG, WebP (Max 2 MB)
+            </div>
+          </div>
+        )}
+
+        <input
+          style={{ marginTop: '8px' }}
+          placeholder="Or enter Image URL manually (optional)"
+          value={form.imageUrl}
+          onChange={(e) => {
+            set('imageUrl')(e);
+            setPreviewUrl(e.target.value);
+          }}
+        />
+      </div>
+
       {error && <p className="error">{error}</p>}
-      <button className="btn">{isEdit ? 'Save changes' : 'Publish listing'}</button>
+      <button className="btn" disabled={uploading}>
+        {uploading ? 'Uploading image...' : isEdit ? 'Save changes' : 'Publish listing'}
+      </button>
     </form>
   );
 }
